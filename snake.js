@@ -1,25 +1,41 @@
-
 //board
-var blockSize = 30;
-var rows = 25;
-var cols = 25;
-var board;
-var context; 
+let blockSize = 30;
+let rows = 25;
+let cols = 25;
+let board;
+let context; 
+
+// Note: those are not real milliseconds!
+// the setTimeout method actually takes longer time than what we ask it to
+// in practice, this is about 100 milliseconds
+// Same disclaimer applies to all milliseconds
+const POWERUP_SPAWN_PROBABILITY = 0.04;
+const MILLISECONDS_FOR_BOARD_UPDATE = 65;
+const MILLISECONDS_FOR_BOARD_UPDATE_WITH_POWERUP = 48; // 35% speedup
+const POWERUP_DURATION_MS = 4000;
 
 //snake head
-var snakeX = blockSize * 5;
-var snakeY = blockSize * 5;
+let snakeX = blockSize * 5;
+let snakeY = blockSize * 5;
 
-var velocityX = 0;
-var velocityY = 0;
+let velocityX = 0;
+let velocityY = 0;
 
-var snakeBody = [];
+let snakeBody = [];
 
-//food
-var foodX;
-var foodY;
+let foodX;
+let foodY;
 
-var gameOver = false;
+let powerupX = null;
+let powerupY = null;
+
+let gameOver = false;
+
+let accumulatedTicks = 0;
+let ticksNeededForUpdate = MILLISECONDS_FOR_BOARD_UPDATE;
+
+let timeElapsed = 0; // milliseconds
+let powerupActiveUntil = Infinity;
 
 window.onload = function() {
     board = document.getElementById("board");
@@ -27,9 +43,22 @@ window.onload = function() {
     board.width = cols * blockSize;
     context = board.getContext("2d"); 
 
-    placeFood();
+    spawnFood();
     document.addEventListener("keyup", changeDirection);
-    setInterval(update, 1000/10); 
+    setInterval(tick, 10);
+}
+
+function tick() {
+    accumulatedTicks += 7;
+    timeElapsed += 7;
+    if (powerupActiveUntil <= timeElapsed) {
+        ticksNeededForUpdate = MILLISECONDS_FOR_BOARD_UPDATE;
+        powerupActiveUntil = Infinity;
+    }
+    if (accumulatedTicks >= ticksNeededForUpdate) {
+        update();
+        accumulatedTicks = 0;
+    }
 }
 
 function update() {
@@ -37,15 +66,33 @@ function update() {
         return;
     }
 
+    const powerupIsPresent = powerupX !== null;
+    const gameHasStarted = velocityX !== 0;
+
     context.fillStyle="black";
     context.fillRect(0, 0, board.width, board.height);
 
     context.fillStyle="red";
     context.fillRect(foodX, foodY, blockSize, blockSize);
 
+    context.fillStyle="yellow";
+    if (powerupIsPresent)
+        context.fillRect(powerupX, powerupY, blockSize, blockSize);
+
+    if (!powerupIsPresent && gameHasStarted && Math.random() < POWERUP_SPAWN_PROBABILITY) {
+        spawnPowerup();
+    }
+
     if (snakeX == foodX && snakeY == foodY) {
         snakeBody.push([foodX, foodY]);
-        placeFood();
+        spawnFood();
+    }
+
+    if (snakeX == powerupX && snakeY == powerupY) {
+        ticksNeededForUpdate = MILLISECONDS_FOR_BOARD_UPDATE_WITH_POWERUP;
+        powerupActiveUntil = timeElapsed + POWERUP_DURATION_MS;
+        powerupX = null;
+        powerupY = null;
     }
 
     for (let i = snakeBody.length-1; i > 0; i--) {
@@ -96,8 +143,14 @@ function changeDirection(e) {
     }
 }
 
-
-function placeFood() {
+function spawnFood() {
+    // TODO: powerup should not spawn on top of power-up or snake
     foodX = Math.floor(Math.random() * cols) * blockSize;
     foodY = Math.floor(Math.random() * rows) * blockSize;
+}
+
+function spawnPowerup() {
+    // TODO: powerup should not spawn on top of food or snake
+    powerupX = Math.floor(Math.random() * cols) * blockSize;
+    powerupY = Math.floor(Math.random() * rows) * blockSize;
 }
